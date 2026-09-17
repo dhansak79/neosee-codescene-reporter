@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+if ! CS_DISABLE_VERSION_CHECK=1 cs delta --git-hook --staged; then
+  echo >&2
+  echo "Agent guidance: use the CodeScene MCP code_health_review and" >&2
+  echo "code_health_score tools to understand and resolve discovered issues." >&2
+  echo "Human guidance: run 'cs delta --staged' for details." >&2
+  exit 1
+fi
+
+echo "Running lint, formatting, and type checks..."
+npm run quality
+
+echo "Running unit tests with 100% coverage..."
+npm run test:unit

@@ -177,19 +177,19 @@ Only begin this phase after the single-project report proves useful.
 
 This is a discovery checklist, not a claim that every item is available from the API.
 
-| Report section | Candidate evidence | Must be verified |
-| --- | --- | --- |
-| Executive summary | Derived top findings, trends, goal progress | Prioritisation thresholds and available trends |
-| Code Health | Current score, distribution, historical values | Granularity and history endpoints |
-| AI readiness | Health, complexity, change concentration, safeguards | A transparent NeoSee definition and sufficient inputs |
-| Hotspots | Change frequency combined with Code Health | Hotspot ranking and time window |
-| Refactoring targets | Hotspot, health trend, component criticality | Criticality input and recommendation mapping |
-| Architecture | Components, dependencies, component health | Component and architecture API coverage |
-| Knowledge risk | Ownership, former contributors, knowledge islands | Privacy constraints and API coverage |
-| Delivery profile | Commits, contributors, PRs, lead-time-related metrics | Available periods and repository-provider integrations |
-| Safeguards | PR checks and finding outcomes | Integration state and PR statistics endpoints |
-| Goal progress | Client goal, actions taken, metric movement | Manual engagement input plus historical evidence |
-| Evidence appendix | Source values, timestamps, rules | Stable source identifiers or reproducible references |
+| Report section      | Candidate evidence                                    | Must be verified                                       |
+| ------------------- | ----------------------------------------------------- | ------------------------------------------------------ |
+| Executive summary   | Derived top findings, trends, goal progress           | Prioritisation thresholds and available trends         |
+| Code Health         | Current score, distribution, historical values        | Granularity and history endpoints                      |
+| AI readiness        | Health, complexity, change concentration, safeguards  | A transparent NeoSee definition and sufficient inputs  |
+| Hotspots            | Change frequency combined with Code Health            | Hotspot ranking and time window                        |
+| Refactoring targets | Hotspot, health trend, component criticality          | Criticality input and recommendation mapping           |
+| Architecture        | Components, dependencies, component health            | Component and architecture API coverage                |
+| Knowledge risk      | Ownership, former contributors, knowledge islands     | Privacy constraints and API coverage                   |
+| Delivery profile    | Commits, contributors, PRs, lead-time-related metrics | Available periods and repository-provider integrations |
+| Safeguards          | PR checks and finding outcomes                        | Integration state and PR statistics endpoints          |
+| Goal progress       | Client goal, actions taken, metric movement           | Manual engagement input plus historical evidence       |
+| Evidence appendix   | Source values, timestamps, rules                      | Stable source identifiers or reproducible references   |
 
 ## First rules to prototype
 

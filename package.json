@@ -1,0 +1,41 @@
+{
+  "name": "neosee-codescene-reporter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "code-health": ".githooks/pre-commit",
+    "dev": "npm run build --silent && node dist/cli.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "quality": "npm run lint && npm run format:check && npm run check",
+    "security:audit": "npm audit --audit-level=high",
+    "security:snyk": "snyk test --severity-threshold=high --all-projects",
+    "test": "npm run test:unit",
+    "test:unit": "npm run build --silent && c8 --all --include 'dist/**/*.js' --exclude 'dist/**/*.test.js' --exclude 'dist/cli.js' --exclude 'dist/codescene/types.js' --check-coverage --lines 100 --functions 100 --branches 100 node --test 'dist/**/*.test.js'",
+    "test:mutation-runner": "node --test 'dist/**/*.test.js'",
+    "test:mutation": "stryker run"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "qs": "6.16.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@stryker-mutator/core": "^9.0.0",
+    "@stryker-mutator/typescript-checker": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "c8": "^10.0.0",
+    "eslint": "^10.0.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.0.0",
+    "snyk": "^1.1307.0",
+    "typescript-eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+echo "Running mutation tests with a 100% threshold..."
+npm run test:mutation

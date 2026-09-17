@@ -160,7 +160,48 @@ Possible later capabilities include portfolio reporting, goal tracking across en
 
 ## Current status
 
-This repository is at the product-definition stage. The immediate next step is an API and report-content spike followed by one thin, end-to-end PDF slice. See [PLAN.md](./PLAN.md).
+The first API slice can list the projects visible to a CodeScene personal access token:
+
+```console
+npm install
+CS_ACCESS_TOKEN=... npm run dev
+```
+
+The hosted API at `https://api.codescene.io/v2` is the default. For Enterprise or on-premises CodeScene, pass `--server https://codescene.example.com` or set `CODESCENE_SERVER`. The CLI reads `CS_ACCESS_TOKEN`, as well as the lowercase `cs_access_token` and `CODESCENE_TOKEN` aliases.
+
+Add `--output snapshots/projects.json` to capture the raw response for schema discovery; the command refuses to overwrite an existing snapshot. The `snapshots/` directory and `.env` files are ignored by Git because project responses may contain client-confidential data.
+
+## Code Health commit gate
+
+This repository uses CodeScene's native, version-controlled pre-commit integration. It runs `cs delta --git-hook --staged` to review the exact staged change and rejects commits that introduce Code Health issues. CodeScene handles Git changes and supported file types directly.
+
+Enable the hook once after cloning:
+
+```console
+git config core.hooksPath .githooks
+```
+
+The hook fails closed when the `cs` executable is unavailable or the delta analysis fails. It then runs the unit suite and requires 100% line, branch, and function coverage. Run the same gates manually with `npm run code-health` and `npm run test:unit`. Use `cs delta --staged` for a detailed human-readable Code Health result, or use the CodeScene MCP `code_health_review` and `code_health_score` tools for agent-guided remediation.
+
+A version-controlled pre-push hook runs Stryker and requires a 100% mutation score. Surviving, timed-out, or uncovered mutants prevent the push. Both hooks are enabled by the same `core.hooksPath` setting above. Run mutation testing directly with `npm run test:mutation`.
+
+The pre-commit hook also enforces strict, type-aware ESLint rules, Prettier formatting, Markdown linting, and TypeScript compilation. Run the complete local static-quality gate with `npm run quality`.
+
+## Continuous integration and security
+
+GitHub Actions runs the static-quality gate, 100% unit coverage, 100% mutation coverage, dependency auditing, and Snyk for every pull request targeting `main` and every push to `main`. CodeScene CI integration is intentionally left to the repository's external CodeScene configuration; the local pre-commit safeguard remains enabled.
+
+Configure these repository secrets before making the workflow required:
+
+- `SNYK_TOKEN` — Snyk service account or personal token
+
+Dependabot checks npm and GitHub Actions dependencies weekly and groups routine development and Actions updates. Dependabot alerts and security updates should also be enabled in the repository's GitHub security settings.
+
+The next step is to verify this call against the target CodeScene deployment, select one project, and add a latest-analysis endpoint followed by one thin PDF slice. See [PLAN.md](./PLAN.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for local setup, quality gates, testing requirements, security policy, and the pull-request workflow.
 
 ## Open-source posture
 
