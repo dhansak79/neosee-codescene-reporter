@@ -189,7 +189,7 @@ The pre-commit hook also enforces strict, type-aware ESLint rules, Prettier form
 
 ## Continuous integration and security
 
-GitHub Actions runs the static-quality gate, 100% unit coverage, 100% mutation coverage, dependency auditing, and Snyk for every pull request targeting `main` and every push to `main`. CodeScene CI integration is intentionally left to the repository's external CodeScene configuration; the local pre-commit safeguard remains enabled.
+GitHub Actions runs the static-quality gate, 100% unit coverage, 100% mutation coverage, and dependency auditing for every pull request targeting `main` and every push to `main`. The secret-backed Snyk scan runs only after trusted pushes to `main`, so fork and Dependabot pull requests neither require nor receive its credentials. CodeScene CI integration is intentionally left to the repository's external CodeScene configuration; the local pre-commit safeguard remains enabled.
 
 Configure these repository secrets before making the workflow required:
 

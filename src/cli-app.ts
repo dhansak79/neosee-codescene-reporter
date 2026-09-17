@@ -35,6 +35,7 @@ export async function runCli(
     await dependencies.writeSnapshot(options.output, `${JSON.stringify(snapshot, null, 2)}\n`, {
       flag: "wx",
     });
+    dependencies.log(`Snapshot written to ${options.output}`);
   }
 
   if (page.projects.length === 0) {
@@ -43,11 +44,10 @@ export async function runCli(
   }
 
   dependencies.log(page.projects);
-  if (options.output) dependencies.log(`Snapshot written to ${options.output}`);
 }
 
 export function parseArgs(args: string[], environment: Environment): Options {
-  let server = environment.CODESCENE_SERVER ?? "https://api.codescene.io/v2";
+  let server = nonEmptyValue(environment.CODESCENE_SERVER) ?? "https://api.codescene.io/v2";
   let output: string | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -62,10 +62,21 @@ export function parseArgs(args: string[], environment: Environment): Options {
 }
 
 export function readToken(environment: Environment): string {
-  const token =
-    environment.CS_ACCESS_TOKEN ?? environment.cs_access_token ?? environment.CODESCENE_TOKEN;
+  const token = [
+    environment.CS_ACCESS_TOKEN,
+    environment.cs_access_token,
+    environment.CODESCENE_TOKEN,
+  ]
+    .map(nonEmptyValue)
+    .find((value) => value !== undefined);
   if (!token) throw new Error("Missing access token. Set CS_ACCESS_TOKEN in the environment.");
   return token;
+}
+
+function nonEmptyValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (trimmed === "") return undefined;
+  return trimmed;
 }
 
 function requireValue(args: string[], index: number, option: string): string {

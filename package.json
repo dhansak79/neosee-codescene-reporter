@@ -20,7 +20,7 @@
     "test:mutation": "stryker run"
   },
   "engines": {
-    "node": ">=22"
+    "node": "^22.13.0 || >=24"
   },
   "overrides": {
     "qs": "6.16.0"

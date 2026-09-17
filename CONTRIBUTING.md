@@ -121,11 +121,11 @@ GitHub Actions runs on every pull request targeting `main` and every push to `ma
 
 - linting, formatting, type-checking, and 100% unit coverage;
 - 100% mutation coverage;
-- npm dependency auditing and Snyk scanning.
+- npm dependency auditing on pull requests and pushes, plus Snyk scanning after trusted pushes to `main`.
 
 CodeScene CI is configured separately and is intentionally not part of this repository's workflow. Local CodeScene pre-commit protection remains mandatory.
 
-Repository administrators must configure `SNYK_TOKEN` before making the security workflow a required check. Dependabot alerts and security updates must also be enabled in GitHub repository settings.
+Repository administrators must configure `SNYK_TOKEN` for the trusted main-branch workflow. The token is intentionally unavailable to fork and Dependabot pull requests. Dependabot alerts and security updates must also be enabled in GitHub repository settings.
 
 ## Pull requests
 

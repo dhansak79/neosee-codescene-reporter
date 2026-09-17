@@ -8,7 +8,10 @@ import { parseArgs, readToken, runCli } from "./cli-app.js";
 describe("CLI", () => {
   it("uses hosted defaults and the preferred token", () => {
     assert.deepEqual(parseArgs([], {}), { server: "https://api.codescene.io/v2" });
-    assert.equal(readToken({ CS_ACCESS_TOKEN: "preferred" }), "preferred");
+    assert.deepEqual(parseArgs([], { CODESCENE_SERVER: "  " }), {
+      server: "https://api.codescene.io/v2",
+    });
+    assert.equal(readToken({ CS_ACCESS_TOKEN: " preferred " }), "preferred");
   });
 
   it("supports options and token aliases", () => {
@@ -18,10 +21,14 @@ describe("CLI", () => {
     );
     assert.equal(readToken({ cs_access_token: "lowercase" }), "lowercase");
     assert.equal(readToken({ CODESCENE_TOKEN: "fallback" }), "fallback");
+    assert.equal(
+      readToken({ CS_ACCESS_TOKEN: " ", cs_access_token: "", CODESCENE_TOKEN: " fallback " }),
+      "fallback",
+    );
   });
 
   it("uses the configured server", () => {
-    assert.deepEqual(parseArgs([], { CODESCENE_SERVER: "https://on-prem.example" }), {
+    assert.deepEqual(parseArgs([], { CODESCENE_SERVER: " https://on-prem.example " }), {
       server: "https://on-prem.example",
     });
   });
@@ -63,7 +70,7 @@ describe("CLI", () => {
   it("reports an empty project list", async () => {
     const log = mock.fn();
     await runCli(
-      [],
+      ["--output", "empty.json"],
       { CS_ACCESS_TOKEN: "token" },
       {
         listProjects: async () => ({ projects: [], raw: [] }),
@@ -73,7 +80,8 @@ describe("CLI", () => {
       },
     );
 
-    assert.deepEqual(log.mock.calls[0]?.arguments, ["No accessible CodeScene projects found."]);
+    assert.deepEqual(log.mock.calls[0]?.arguments, ["Snapshot written to empty.json"]);
+    assert.deepEqual(log.mock.calls[1]?.arguments, ["No accessible CodeScene projects found."]);
   });
 
   it("writes a non-overwriting snapshot", async () => {
@@ -94,9 +102,14 @@ describe("CLI", () => {
     );
 
     assert.equal(writeSnapshot.mock.calls[0]?.arguments[0], "snapshot.json");
-    assert.match(String(writeSnapshot.mock.calls[0]?.arguments[1]), /2026-01-02T03:04:05.000Z/);
+    assert.deepEqual(JSON.parse(String(writeSnapshot.mock.calls[0]?.arguments[1])), {
+      capturedAt: "2026-01-02T03:04:05.000Z",
+      source: "https://api.codescene.io/v2",
+      data: { projects: [] },
+    });
     assert.deepEqual(writeSnapshot.mock.calls[0]?.arguments[2], { flag: "wx" });
-    assert.deepEqual(log.mock.calls[1]?.arguments, ["Snapshot written to snapshot.json"]);
+    assert.deepEqual(log.mock.calls[0]?.arguments, ["Snapshot written to snapshot.json"]);
+    assert.deepEqual(log.mock.calls[1]?.arguments, [[{ id: 1, name: "Example" }]]);
   });
 
   it("runs with its default dependencies", async () => {
