@@ -175,6 +175,16 @@ The hosted API at `https://api.codescene.io/v2` is the default. For Enterprise o
 
 Add `--output snapshots/projects.json` to capture the raw response for schema discovery; the command refuses to overwrite an existing snapshot. The `snapshots/` directory and `.env` files are ignored by Git because project responses may contain client-confidential data.
 
+Generate the current walking-skeleton report for a selected project as HTML or machine-readable JSON:
+
+```console
+mkdir -p reports
+CS_ACCESS_TOKEN=... npm run dev -- --project 84792 --output reports/assessment.html
+CS_ACCESS_TOKEN=... npm run dev -- --project 84792 --output reports/assessment.json
+```
+
+The report command reads the latest project summary, analysis metadata, and file results. It validates those responses before building deterministic summary metrics, findings, and evidence references. Output files are created without overwriting existing reports, and `reports/` is ignored because generated assessments may contain confidential project information.
+
 ## Code Health commit gate
 
 This repository uses CodeScene's native, version-controlled pre-commit integration. It runs `cs delta --git-hook --staged` to review the exact staged change and rejects commits that introduce Code Health issues. CodeScene handles Git changes and supported file types directly.

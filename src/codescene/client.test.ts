@@ -142,6 +142,161 @@ describe("CodeSceneClient", () => {
       await assert.rejects(client.listProjects(), /Unexpected/);
     }
   });
+
+  it("retrieves and validates a project analysis snapshot", async () => {
+    const request = mock.fn<typeof fetch>(async (input) => {
+      const path = requestUrl(input).pathname;
+      if (path.endsWith("/analyses/latest")) return Response.json(validAnalysis());
+      if (path.endsWith("/files")) return Response.json(validFiles());
+      return Response.json(validProject());
+    });
+    const client = new CodeSceneClient({
+      server: "https://codescene.example.com",
+      token: "token",
+      fetch: request,
+    });
+
+    const result = await client.getProjectAnalysis("project/42");
+
+    assert.deepEqual(
+      request.mock.calls.map((call) => requestUrl(call.arguments[0]).toString()),
+      [
+        "https://codescene.example.com/api/v2/projects/project%2F42",
+        "https://codescene.example.com/api/v2/projects/project%2F42/analyses/latest",
+        "https://codescene.example.com/api/v2/projects/project%2F42/analyses/latest/files",
+      ],
+    );
+    assert.deepEqual(result, {
+      project: {
+        id: 42,
+        name: "Example",
+        analysis: {
+          codeHealth: { now: 10, month: null, year: 9.5 },
+          hotspotCodeHealth: { now: 9, month: 8.5, year: null },
+          authors: { total: 3, active: 2 },
+          lineCoveragePercent: 100,
+        },
+      },
+      latestAnalysis: { id: 123, name: "Example", analysedAt: "2026-09-17T14:15:55Z" },
+      files: [
+        {
+          name: "healthy.ts",
+          path: "src/healthy.ts",
+          linesOfCode: 20,
+          changeFrequency: 2,
+          codeHealth: 10,
+          hotspot: true,
+        },
+        {
+          name: "config.json",
+          path: "config.json",
+          linesOfCode: 5,
+          changeFrequency: 1,
+          codeHealth: null,
+          hotspot: false,
+        },
+      ],
+    });
+  });
+
+  it("treats missing or malformed coverage as unavailable", async () => {
+    for (const coverage of [undefined, { line_coverage_percent: "unknown" }]) {
+      const source = validProject();
+      const project = {
+        ...source,
+        analysis: { ...source.analysis, code_coverage: coverage },
+      };
+      const client = snapshotClient(project, validAnalysis(), validFiles());
+      assert.equal(
+        (await client.getProjectAnalysis(42)).project.analysis.lineCoveragePercent,
+        null,
+      );
+    }
+  });
+
+  it("rejects malformed project details and metrics", async () => {
+    const cases: [unknown, RegExp][] = [
+      [null, /project details/],
+      [{ id: 42, analysis: {} }, /project details/],
+      [{ id: 42, name: "Example" }, /project details/],
+      [{ ...validProject(), analysis: { ...validProject().analysis, authors: null } }, /author/],
+      [
+        {
+          ...validProject(),
+          analysis: { ...validProject().analysis, authors: { total: Number.NaN, active: 2 } },
+        },
+        /author/,
+      ],
+      [
+        {
+          ...validProject(),
+          analysis: { ...validProject().analysis, code_health: { now: "10" } },
+        },
+        /code health metrics/,
+      ],
+      [
+        {
+          ...validProject(),
+          analysis: {
+            ...validProject().analysis,
+            code_health: { now: 10, month: "unknown", year: null },
+          },
+        },
+        /code health metrics/,
+      ],
+      [
+        {
+          ...validProject(),
+          analysis: { ...validProject().analysis, hotspot_code_health: { now: null } },
+        },
+        /hotspot code health metrics/,
+      ],
+    ];
+    for (const [project, message] of cases) {
+      await assert.rejects(
+        snapshotClient(project, validAnalysis(), validFiles()).getProjectAnalysis(42),
+        message,
+      );
+    }
+  });
+
+  it("rejects malformed latest-analysis details", async () => {
+    for (const analysis of [
+      null,
+      {},
+      { id: "123", name: "Example", readable_analysis_time: "today" },
+      { id: 123, name: null, readable_analysis_time: "today" },
+    ]) {
+      await assert.rejects(
+        snapshotClient(validProject(), analysis, validFiles()).getProjectAnalysis(42),
+        /Unexpected latest/,
+      );
+    }
+  });
+
+  it("rejects missing and malformed files", async () => {
+    await assert.rejects(
+      snapshotClient(validProject(), validAnalysis(), {}).getProjectAnalysis(42),
+      /files response/,
+    );
+    await assert.rejects(
+      snapshotClient(validProject(), validAnalysis(), { files: [null] }).getProjectAnalysis(42),
+      /file at index 0/,
+    );
+    const file = validFiles().files[0]!;
+    await assert.rejects(
+      snapshotClient(validProject(), validAnalysis(), {
+        files: [{ ...file, code_health: { current_score: "unknown" } }],
+      }).getProjectAnalysis(42),
+      /file Code Health at index 0/,
+    );
+    await assert.rejects(
+      snapshotClient(validProject(), validAnalysis(), {
+        files: [{ ...file, hotspot: "yes" }],
+      }).getProjectAnalysis(42),
+      /file at index 0/,
+    );
+  });
 });
 
 async function assertServerResolutions(cases: [string, string][]): Promise<void> {
@@ -151,4 +306,63 @@ async function assertServerResolutions(cases: [string, string][]): Promise<void>
     await client.listProjects();
     assert.deepEqual(request.mock.calls[0]?.arguments[0], new URL(expected));
   }
+}
+
+function snapshotClient(project: unknown, analysis: unknown, files: unknown): CodeSceneClient {
+  const responses = [project, analysis, files];
+  return new CodeSceneClient({
+    server: "https://example.com",
+    token: "token",
+    fetch: async () => Response.json(responses.shift()),
+  });
+}
+
+function requestUrl(input: string | URL | Request): URL {
+  if (input instanceof URL) return input;
+  return new URL(typeof input === "string" ? input : input.url);
+}
+
+function validProject() {
+  return {
+    id: 42,
+    name: "Example",
+    analysis: {
+      code_health: { now: 10, month: null, year: 9.5 },
+      hotspot_code_health: { now: 9, month: 8.5, year: null },
+      authors: { total: 3, active: 2 },
+      code_coverage: { line_coverage_percent: 100 },
+    },
+  };
+}
+
+function validAnalysis() {
+  return {
+    id: 123,
+    name: "Example",
+    readable_analysis_time: "2026-09-17T14:15:55Z",
+    analysistime: "2000-01-01T00:00:00Z",
+  };
+}
+
+function validFiles() {
+  return {
+    files: [
+      {
+        name: "healthy.ts",
+        path: "src/healthy.ts",
+        lines_of_code: 20,
+        change_frequency: 2,
+        code_health: { current_score: 10 },
+        hotspot: true,
+      },
+      {
+        name: "config.json",
+        path: "config.json",
+        lines_of_code: 5,
+        change_frequency: 1,
+        code_health: { current_score: "-" },
+        hotspot: false,
+      },
+    ],
+  };
 }

@@ -8,3 +8,4 @@ snapshots/
 .stryker-tmp/
 reports/
 coverage/
+*.DS_Store
