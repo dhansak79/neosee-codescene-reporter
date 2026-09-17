@@ -22,6 +22,9 @@ describe("renderHtml", () => {
     assert.match(html, /src="data:image\/png;base64,partner" alt="CodeScene Official Partner"/);
     assert.match(html, /:root \{ color: #172033/);
     assert.match(html, /@media print/);
+    assert.match(html, /<strong>1<\/strong>Hotspots on loaded page/);
+    assert.match(html, /2 of 3 files on the loaded API page/);
+    assert.match(html, /page-scoped, not project totals/);
   });
 
   it("renders unavailable coverage and an empty finding state", () => {
@@ -44,9 +47,11 @@ function report(): AssessmentReport {
     summary: {
       codeHealth: 10,
       lineCoveragePercent: 100,
-      analysedFiles: 3,
-      measurableFiles: 2,
-      hotspots: 1,
+      loadedFilePage: {
+        analysedFiles: 3,
+        measurableFiles: 2,
+        hotspots: 1,
+      },
     },
     findings: [
       {

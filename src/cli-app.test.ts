@@ -147,9 +147,7 @@ describe("CLI", () => {
           code_coverage: { line_coverage_percent: 100 },
         },
       },
-      {
-        analyses: [{ id: 123, name: "Example", analysistime: "2026-01-02T03:04:05Z" }],
-      },
+      { id: 123, name: "Example", readable_analysis_time: "2026-01-02T03:04:05Z" },
       {
         files: [
           {

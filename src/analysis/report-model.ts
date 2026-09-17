@@ -26,9 +26,11 @@ export type AssessmentReport = {
   summary: {
     codeHealth: number;
     lineCoveragePercent: number | null;
-    analysedFiles: number;
-    measurableFiles: number;
-    hotspots: number;
+    loadedFilePage: {
+      analysedFiles: number;
+      measurableFiles: number;
+      hotspots: number;
+    };
   };
   findings: Finding[];
   evidence: Evidence[];
@@ -68,9 +70,11 @@ export function buildAssessment(snapshot: ProjectAnalysisSnapshot): AssessmentRe
     summary: {
       codeHealth: snapshot.project.analysis.codeHealth.now,
       lineCoveragePercent: snapshot.project.analysis.lineCoveragePercent,
-      analysedFiles: snapshot.files.length,
-      measurableFiles: snapshot.files.filter((file) => file.codeHealth !== null).length,
-      hotspots: snapshot.files.filter((file) => file.hotspot).length,
+      loadedFilePage: {
+        analysedFiles: snapshot.files.length,
+        measurableFiles: snapshot.files.filter((file) => file.codeHealth !== null).length,
+        hotspots: snapshot.files.filter((file) => file.hotspot).length,
+      },
     },
     findings: historyAvailable
       ? []

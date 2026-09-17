@@ -10,9 +10,11 @@ describe("buildAssessment", () => {
     assert.deepEqual(report.summary, {
       codeHealth: 10,
       lineCoveragePercent: null,
-      analysedFiles: 3,
-      measurableFiles: 2,
-      hotspots: 1,
+      loadedFilePage: {
+        analysedFiles: 3,
+        measurableFiles: 2,
+        hotspots: 1,
+      },
     });
     assert.deepEqual(report.findings, [
       {

@@ -36,9 +36,9 @@ export function renderHtml(report: AssessmentReport, branding: ReportBranding): 
     <div class="metrics">
       <div class="metric"><strong>${report.summary.codeHealth.toFixed(1)}</strong>Code Health</div>
       <div class="metric"><strong>${formatPercent(report.summary.lineCoveragePercent)}</strong>Line coverage</div>
-      <div class="metric"><strong>${report.summary.hotspots}</strong>Hotspots</div>
+      <div class="metric"><strong>${report.summary.loadedFilePage.hotspots}</strong>Hotspots on loaded page</div>
     </div>
-    <p>${report.summary.measurableFiles} of ${report.summary.analysedFiles} analysed files currently have a Code Health score.</p>
+    <p>${report.summary.loadedFilePage.measurableFiles} of ${report.summary.loadedFilePage.analysedFiles} files on the loaded API page currently have a Code Health score. These values are page-scoped, not project totals.</p>
     <h2>Selected findings</h2>
     ${findings}
   </section>

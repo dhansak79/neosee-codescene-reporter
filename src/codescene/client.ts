@@ -44,15 +44,15 @@ export class CodeSceneClient {
 
   async getProjectAnalysis(projectId: string | number): Promise<ProjectAnalysisSnapshot> {
     const projectPath = `projects/${encodeURIComponent(String(projectId))}`;
-    const [project, analyses, files] = await Promise.all([
+    const [project, latestAnalysis, files] = await Promise.all([
       this.get(projectPath),
-      this.get(`${projectPath}/analyses`),
+      this.get(`${projectPath}/analyses/latest`),
       this.get(`${projectPath}/analyses/latest/files`),
     ]);
 
     return {
       project: parseProjectDetails(project),
-      latestAnalysis: parseLatestAnalysis(analyses),
+      latestAnalysis: parseLatestAnalysis(latestAnalysis),
       files: parseFiles(files),
     };
   }
@@ -178,16 +178,12 @@ function parseTrend(value: unknown, label: string): CodeHealthTrend {
 }
 
 function parseLatestAnalysis(value: unknown): CodeSceneAnalysis {
-  const listContext = { message: "Unexpected CodeScene analyses response: no analyses found" };
-  const response = requireRecord(value, listContext);
-  const analyses = requireArray(response.analyses, listContext);
-  if (analyses.length === 0) throw new TypeError(listContext.message);
-  const itemContext = { message: "Unexpected latest CodeScene analysis" };
-  const analysis = requireRecord(analyses[0], itemContext);
+  const context = { message: "Unexpected latest CodeScene analysis" };
+  const analysis = requireRecord(value, context);
   return {
-    id: requireNumber(analysis.id, itemContext),
-    name: requireString(analysis.name, itemContext),
-    analysedAt: requireString(analysis.analysistime, itemContext),
+    id: requireNumber(analysis.id, context),
+    name: requireString(analysis.name, context),
+    analysedAt: requireString(analysis.readable_analysis_time, context),
   };
 }
 

@@ -146,7 +146,7 @@ describe("CodeSceneClient", () => {
   it("retrieves and validates a project analysis snapshot", async () => {
     const request = mock.fn<typeof fetch>(async (input) => {
       const path = requestUrl(input).pathname;
-      if (path.endsWith("/analyses")) return Response.json(validAnalyses());
+      if (path.endsWith("/analyses/latest")) return Response.json(validAnalysis());
       if (path.endsWith("/files")) return Response.json(validFiles());
       return Response.json(validProject());
     });
@@ -162,7 +162,7 @@ describe("CodeSceneClient", () => {
       request.mock.calls.map((call) => requestUrl(call.arguments[0]).toString()),
       [
         "https://codescene.example.com/api/v2/projects/project%2F42",
-        "https://codescene.example.com/api/v2/projects/project%2F42/analyses",
+        "https://codescene.example.com/api/v2/projects/project%2F42/analyses/latest",
         "https://codescene.example.com/api/v2/projects/project%2F42/analyses/latest/files",
       ],
     );
@@ -206,7 +206,7 @@ describe("CodeSceneClient", () => {
         ...source,
         analysis: { ...source.analysis, code_coverage: coverage },
       };
-      const client = snapshotClient(project, validAnalyses(), validFiles());
+      const client = snapshotClient(project, validAnalysis(), validFiles());
       assert.equal(
         (await client.getProjectAnalysis(42)).project.analysis.lineCoveragePercent,
         null,
@@ -254,28 +254,21 @@ describe("CodeSceneClient", () => {
     ];
     for (const [project, message] of cases) {
       await assert.rejects(
-        snapshotClient(project, validAnalyses(), validFiles()).getProjectAnalysis(42),
+        snapshotClient(project, validAnalysis(), validFiles()).getProjectAnalysis(42),
         message,
       );
     }
   });
 
-  it("rejects missing and malformed analyses", async () => {
-    for (const analyses of [{}, { analyses: [] }]) {
-      await assert.rejects(
-        snapshotClient(validProject(), analyses, validFiles()).getProjectAnalysis(42),
-        /no analyses found/,
-      );
-    }
+  it("rejects malformed latest-analysis details", async () => {
     for (const analysis of [
       null,
-      { id: "123", name: "Example", analysistime: "today" },
-      { id: 123, name: null, analysistime: "today" },
+      {},
+      { id: "123", name: "Example", readable_analysis_time: "today" },
+      { id: 123, name: null, readable_analysis_time: "today" },
     ]) {
       await assert.rejects(
-        snapshotClient(validProject(), { analyses: [analysis] }, validFiles()).getProjectAnalysis(
-          42,
-        ),
+        snapshotClient(validProject(), analysis, validFiles()).getProjectAnalysis(42),
         /Unexpected latest/,
       );
     }
@@ -283,22 +276,22 @@ describe("CodeSceneClient", () => {
 
   it("rejects missing and malformed files", async () => {
     await assert.rejects(
-      snapshotClient(validProject(), validAnalyses(), {}).getProjectAnalysis(42),
+      snapshotClient(validProject(), validAnalysis(), {}).getProjectAnalysis(42),
       /files response/,
     );
     await assert.rejects(
-      snapshotClient(validProject(), validAnalyses(), { files: [null] }).getProjectAnalysis(42),
+      snapshotClient(validProject(), validAnalysis(), { files: [null] }).getProjectAnalysis(42),
       /file at index 0/,
     );
     const file = validFiles().files[0]!;
     await assert.rejects(
-      snapshotClient(validProject(), validAnalyses(), {
+      snapshotClient(validProject(), validAnalysis(), {
         files: [{ ...file, code_health: { current_score: "unknown" } }],
       }).getProjectAnalysis(42),
       /file Code Health at index 0/,
     );
     await assert.rejects(
-      snapshotClient(validProject(), validAnalyses(), {
+      snapshotClient(validProject(), validAnalysis(), {
         files: [{ ...file, hotspot: "yes" }],
       }).getProjectAnalysis(42),
       /file at index 0/,
@@ -315,8 +308,8 @@ async function assertServerResolutions(cases: [string, string][]): Promise<void>
   }
 }
 
-function snapshotClient(project: unknown, analyses: unknown, files: unknown): CodeSceneClient {
-  const responses = [project, analyses, files];
+function snapshotClient(project: unknown, analysis: unknown, files: unknown): CodeSceneClient {
+  const responses = [project, analysis, files];
   return new CodeSceneClient({
     server: "https://example.com",
     token: "token",
@@ -342,9 +335,12 @@ function validProject() {
   };
 }
 
-function validAnalyses() {
+function validAnalysis() {
   return {
-    analyses: [{ id: 123, name: "Example", analysistime: "2026-09-17T14:15:55Z" }],
+    id: 123,
+    name: "Example",
+    readable_analysis_time: "2026-09-17T14:15:55Z",
+    analysistime: "2000-01-01T00:00:00Z",
   };
 }
 
