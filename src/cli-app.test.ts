@@ -53,7 +53,9 @@ describe("CLI", () => {
       { CS_ACCESS_TOKEN: "token" },
       {
         listProjects,
+        getProjectAnalysis: async () => mockSnapshot(),
         writeSnapshot: mock.fn(async () => undefined),
+        readAsset: async () => Buffer.from("logo"),
         now: () => new Date("2026-01-02T03:04:05.000Z"),
         log,
       },
@@ -74,7 +76,9 @@ describe("CLI", () => {
       { CS_ACCESS_TOKEN: "token" },
       {
         listProjects: async () => ({ projects: [], raw: [] }),
+        getProjectAnalysis: async () => mockSnapshot(),
         writeSnapshot: mock.fn(async () => undefined),
+        readAsset: async () => Buffer.from("logo"),
         now: () => new Date("2026-01-02T03:04:05.000Z"),
         log,
       },
@@ -95,7 +99,9 @@ describe("CLI", () => {
           projects: [{ id: 1, name: "Example" }],
           raw: { projects: [] },
         }),
+        getProjectAnalysis: async () => mockSnapshot(),
         writeSnapshot: writeSnapshot as typeof writeFile,
+        readAsset: async () => Buffer.from("logo"),
         now: () => new Date("2026-01-02T03:04:05.000Z"),
         log,
       },
@@ -126,4 +132,136 @@ describe("CLI", () => {
       await rm(directory, { recursive: true });
     }
   });
+
+  it("generates a report with its default dependencies", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "neosee-report-test-"));
+    const output = join(directory, "report.html");
+    const responses = [
+      {
+        id: 84792,
+        name: "Example",
+        analysis: {
+          code_health: { now: 10, month: null, year: null },
+          hotspot_code_health: { now: 0, month: null, year: null },
+          authors: { total: 2, active: 2 },
+          code_coverage: { line_coverage_percent: 100 },
+        },
+      },
+      {
+        analyses: [{ id: 123, name: "Example", analysistime: "2026-01-02T03:04:05Z" }],
+      },
+      {
+        files: [
+          {
+            name: "index.ts",
+            path: "src/index.ts",
+            lines_of_code: 10,
+            change_frequency: 1,
+            code_health: { current_score: 10 },
+            hotspot: false,
+          },
+        ],
+      },
+    ];
+    mock.method(globalThis, "fetch", async () => Response.json(responses.shift()));
+    mock.method(console, "log", () => undefined);
+
+    try {
+      await runCli(["--project", "84792", "--output", output], {
+        CS_ACCESS_TOKEN: "token",
+      });
+      assert.match(await readFile(output, "utf8"), /Engineering health assessment/);
+    } finally {
+      mock.restoreAll();
+      await rm(directory, { recursive: true });
+    }
+  });
+
+  it("writes HTML and JSON reports for a selected project", async () => {
+    for (const output of ["report.html", "report.json"]) {
+      const writeSnapshot = mock.fn(async (..._args: unknown[]) => undefined);
+      const getProjectAnalysis = mock.fn(async () => mockSnapshot());
+      const readAsset = mock.fn(async (path: string) => Buffer.from(path));
+      const log = mock.fn();
+
+      await runCli(
+        ["--project", "84792", "--output", output],
+        { CS_ACCESS_TOKEN: "token" },
+        {
+          listProjects: async () => ({ projects: [], raw: [] }),
+          getProjectAnalysis,
+          writeSnapshot: writeSnapshot as typeof writeFile,
+          readAsset,
+          now: () => new Date(),
+          log,
+        },
+      );
+
+      assert.deepEqual(getProjectAnalysis.mock.calls[0]?.arguments, [
+        "https://api.codescene.io/v2",
+        "token",
+        "84792",
+      ]);
+      const content = String(writeSnapshot.mock.calls[0]?.arguments[1]);
+      assert.match(
+        content,
+        output.endsWith(".json") ? /"schemaVersion": "1.0"/ : /<!doctype html>/,
+      );
+      if (output.endsWith(".json")) {
+        assert.equal(readAsset.mock.callCount(), 0);
+      } else {
+        assert.deepEqual(
+          readAsset.mock.calls.map((call) => call.arguments[0]),
+          [".resources/neosee.png", ".resources/Official Partner Badge - Light Backround.png"],
+        );
+        assert.match(content, new RegExp(Buffer.from(".resources/neosee.png").toString("base64")));
+      }
+      assert.deepEqual(writeSnapshot.mock.calls[0]?.arguments[2], { flag: "wx" });
+      assert.deepEqual(log.mock.calls[0]?.arguments, [`Report written to ${output}`]);
+    }
+  });
+
+  it("requires an output for a selected project", async () => {
+    await assert.rejects(
+      runCli(
+        ["--project", "84792"],
+        { CS_ACCESS_TOKEN: "token" },
+        {
+          listProjects: async () => ({ projects: [], raw: [] }),
+          getProjectAnalysis: async () => mockSnapshot(),
+          writeSnapshot: mock.fn(async () => undefined),
+          readAsset: async () => Buffer.from("logo"),
+          now: () => new Date(),
+          log: mock.fn(),
+        },
+      ),
+      /--project requires --output/,
+    );
+  });
 });
+
+function mockSnapshot() {
+  return {
+    project: {
+      id: 84792,
+      name: "Example",
+      analysis: {
+        codeHealth: { now: 10, month: null, year: null },
+        hotspotCodeHealth: { now: 0, month: null, year: null },
+        authors: { total: 2, active: 2 },
+        lineCoveragePercent: 100,
+      },
+    },
+    latestAnalysis: { id: 123, name: "Example", analysedAt: "2026-01-02T03:04:05Z" },
+    files: [
+      {
+        name: "index.ts",
+        path: "src/index.ts",
+        linesOfCode: 10,
+        changeFrequency: 2,
+        codeHealth: 10,
+        hotspot: true,
+      },
+    ],
+  };
+}
