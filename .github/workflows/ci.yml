@@ -30,7 +30,35 @@ jobs:
       - run: npm run test:unit
       - name: Install CodeScene coverage CLI
         if: github.event_name == 'push'
-        run: curl --fail --silent --show-error --location https://downloads.codescene.io/enterprise/cli/install-cs-coverage-tool.sh | bash -s -- -y
+        shell: bash
+        run: |
+          install_dir="$RUNNER_TEMP/codescene"
+          archive="$install_dir/cs-coverage.zip"
+          key="$install_dir/codescene-cli-gpg-public.asc"
+          keyring="$install_dir/gnupg"
+
+          mkdir -p "$install_dir/target" "$keyring"
+          chmod 700 "$keyring"
+          curl --fail --silent --show-error --location \
+            --output "$archive" \
+            https://downloads.codescene.io/enterprise/cli/cs-coverage-linux-amd64-latest.zip
+          curl --fail --silent --show-error --location \
+            --output "$key" \
+            https://downloads.codescene.io/enterprise/keys/codescene-cli-gpg-public.asc
+
+          fingerprint="$(gpg --batch --homedir "$keyring" --show-keys --with-colons "$key" | awk -F: '$1 == "fpr" { print $10; exit }')"
+          test "$fingerprint" = "2E8DD144459EDC185E2591183C04140BD929767D"
+
+          unzip -p "$archive" cs-coverage.sha256.asc > "$install_dir/cs-coverage.sha256.asc"
+          unzip -p "$archive" cs-coverage > "$install_dir/target/cs-coverage"
+          gpg --batch --homedir "$keyring" --import "$key"
+          gpg --batch --homedir "$keyring" \
+            --output "$install_dir/cs-coverage.sha256" \
+            --decrypt "$install_dir/cs-coverage.sha256.asc"
+          (cd "$install_dir" && sha256sum --check cs-coverage.sha256)
+
+          chmod +x "$install_dir/target/cs-coverage"
+          echo "$install_dir/target" >> "$GITHUB_PATH"
       - name: Upload coverage to CodeScene
         if: github.event_name == 'push'
         env:
