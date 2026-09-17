@@ -18,25 +18,37 @@ jobs:
     name: Lint, types, and unit coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run quality
       - run: npm run test:unit
+      - name: Install CodeScene coverage CLI
+        if: github.event_name == 'push'
+        run: curl --fail --silent --show-error --location https://downloads.codescene.io/enterprise/cli/install-cs-coverage-tool.sh | bash -s -- -y
+      - name: Upload coverage to CodeScene
+        if: github.event_name == 'push'
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        run: |
+          test -n "$CS_ACCESS_TOKEN" || (echo "Repository secret CS_ACCESS_TOKEN is required" && exit 1)
+          cs-coverage upload --format lcov --metric line-coverage coverage/lcov.info
+          cs-coverage upload --format lcov --metric branch-coverage coverage/lcov.info
+          cs-coverage upload --format lcov --metric function-coverage coverage/lcov.info
 
   mutation:
     name: Mutation coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -47,10 +59,10 @@ jobs:
     name: Dependency security
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm

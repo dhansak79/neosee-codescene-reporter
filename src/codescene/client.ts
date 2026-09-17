@@ -65,6 +65,10 @@ export class CodeSceneClient {
 
 function normalizeServer(server: string): URL {
   const url = new URL(server);
+  if (url.protocol !== "https:") {
+    throw new TypeError("CodeScene server URL must use HTTPS");
+  }
+
   const pathname = url.pathname.replace(/\/$/, "");
 
   if (pathname.endsWith("/api/v2") || pathname.endsWith("/v2")) {

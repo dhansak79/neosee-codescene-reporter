@@ -48,7 +48,7 @@ Treat project names, repository paths, contributor details, API responses, and g
 | `npm run security:snyk`  | Scan dependencies with Snyk                             |
 | `npm run code-health`    | Run the complete pre-commit hook manually               |
 
-Snyk requires `SNYK_TOKEN` in the environment. It is primarily enforced in CI through the corresponding GitHub repository secret.
+Snyk requires `SNYK_TOKEN` in the environment. It is primarily enforced in CI through the corresponding GitHub repository secret. The trusted `main` build also uses a `CS_ACCESS_TOKEN` repository secret to upload line, branch, and function coverage to CodeScene. On-premises installations additionally need a `CS_ONPREM_URL` secret and matching workflow environment variable.
 
 ## Git hooks
 
@@ -121,11 +121,12 @@ GitHub Actions runs on every pull request targeting `main` and every push to `ma
 
 - linting, formatting, type-checking, and 100% unit coverage;
 - 100% mutation coverage;
-- npm dependency auditing on pull requests and pushes, plus Snyk scanning after trusted pushes to `main`.
+- npm dependency auditing on pull requests and pushes, plus Snyk scanning after trusted pushes to `main`;
+- CodeScene line, branch, and function coverage uploads after trusted pushes to `main`.
 
-CodeScene CI is configured separately and is intentionally not part of this repository's workflow. Local CodeScene pre-commit protection remains mandatory.
+CodeScene PR analysis is configured separately and is intentionally not duplicated in this workflow. Local CodeScene pre-commit protection remains mandatory.
 
-Repository administrators must configure `SNYK_TOKEN` for the trusted main-branch workflow. The token is intentionally unavailable to fork and Dependabot pull requests. Dependabot alerts and security updates must also be enabled in GitHub repository settings.
+Repository administrators must configure `SNYK_TOKEN` and `CS_ACCESS_TOKEN` for the trusted main-branch workflow. The tokens are intentionally unavailable to fork and Dependabot pull requests. Dependabot alerts and security updates must also be enabled in GitHub repository settings.
 
 ## Pull requests
 

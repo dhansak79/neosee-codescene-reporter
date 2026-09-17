@@ -15,7 +15,7 @@
     "security:audit": "npm audit --audit-level=high",
     "security:snyk": "snyk test --severity-threshold=high --all-projects",
     "test": "npm run test:unit",
-    "test:unit": "npm run build --silent && c8 --all --include 'dist/**/*.js' --exclude 'dist/**/*.test.js' --exclude 'dist/cli.js' --exclude 'dist/codescene/types.js' --check-coverage --lines 100 --functions 100 --branches 100 node --test 'dist/**/*.test.js'",
+    "test:unit": "npm run build --silent && c8 --all --reporter=text --reporter=lcov --include 'dist/**/*.js' --exclude 'dist/**/*.test.js' --exclude 'dist/cli.js' --exclude 'dist/codescene/types.js' --check-coverage --lines 100 --functions 100 --branches 100 node --test 'dist/**/*.test.js'",
     "test:mutation-runner": "node --test 'dist/**/*.test.js'",
     "test:mutation": "stryker run"
   },

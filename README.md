@@ -1,5 +1,9 @@
 # NeoSee Code Health Report
 
+[![CodeScene Average Code Health](https://codescene.io/projects/84792/status-badges/average-code-health)](https://codescene.io/projects/84792)
+[![CodeScene Hotspot Code Health](https://codescene.io/projects/84792/status-badges/hotspot-code-health)](https://codescene.io/projects/84792)
+[![CodeScene System Mastery](https://codescene.io/projects/84792/status-badges/system-mastery)](https://codescene.io/projects/84792)
+
 A NeoSee-branded reporting layer on top of CodeScene. It turns analysis data into a concise, client-facing engineering assessment that explains what matters, why it matters, the evidence behind it, and what to do next.
 
 The repository name describes the implementation; **NeoSee Code Health Report** is the working product name.
@@ -189,11 +193,12 @@ The pre-commit hook also enforces strict, type-aware ESLint rules, Prettier form
 
 ## Continuous integration and security
 
-GitHub Actions runs the static-quality gate, 100% unit coverage, 100% mutation coverage, and dependency auditing for every pull request targeting `main` and every push to `main`. The secret-backed Snyk scan runs only after trusted pushes to `main`, so fork and Dependabot pull requests neither require nor receive its credentials. CodeScene CI integration is intentionally left to the repository's external CodeScene configuration; the local pre-commit safeguard remains enabled.
+GitHub Actions runs the static-quality gate, 100% unit coverage, 100% mutation coverage, and dependency auditing for every pull request targeting `main` and every push to `main`. After a trusted push to `main`, CI uploads line, branch, and function coverage to CodeScene using the `CS_ACCESS_TOKEN` repository secret and runs the secret-backed Snyk scan. Fork and Dependabot pull requests neither require nor receive these credentials. CodeScene PR analysis remains in the repository's external CodeScene configuration; the local pre-commit safeguard remains enabled.
 
 Configure these repository secrets before making the workflow required:
 
 - `SNYK_TOKEN` — Snyk service account or personal token
+- `CS_ACCESS_TOKEN` — CodeScene personal access token used by the coverage uploader
 
 Dependabot checks npm and GitHub Actions dependencies weekly and groups routine development and Actions updates. Dependabot alerts and security updates should also be enabled in the repository's GitHub security settings.
 

@@ -34,6 +34,15 @@ describe("CodeSceneClient", () => {
     ]);
   });
 
+  it("rejects server URLs that do not use HTTPS", () => {
+    for (const server of ["http://codescene.example.com", "ftp://codescene.example.com"]) {
+      assert.throws(
+        () => new CodeSceneClient({ server, token: "token" }),
+        /CodeScene server URL must use HTTPS/,
+      );
+    }
+  });
+
   it("reports API failures without including the token", async () => {
     const request = mock.fn<typeof fetch>(
       async () => new Response("Unauthorized", { status: 401, statusText: "Unauthorized" }),
