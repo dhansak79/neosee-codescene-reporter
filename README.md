@@ -178,12 +178,11 @@ Add `--output snapshots/projects.json` to capture the raw response for schema di
 Generate the current walking-skeleton report for a selected project as HTML or machine-readable JSON:
 
 ```console
-mkdir -p reports
-CS_ACCESS_TOKEN=... npm run dev -- --project 84792 --output reports/assessment.html
+CS_ACCESS_TOKEN=... npm run dev -- --project 84792
 CS_ACCESS_TOKEN=... npm run dev -- --project 84792 --output reports/assessment.json
 ```
 
-The report command reads the latest project summary, analysis metadata, and file results. It validates those responses before building deterministic summary metrics, findings, and evidence references. Output files are created without overwriting existing reports, and `reports/` is ignored because generated assessments may contain confidential project information.
+Without `--output`, reports are written to `reports/project-<project-id>-analysis-<analysis-id>.html`. The report command reads the latest project summary, analysis metadata, and file results. It validates those responses before building deterministic summary metrics, findings, and evidence references. Output files are created without overwriting existing reports, and `reports/` is ignored because generated assessments may contain confidential project information.
 
 ## Code Health commit gate
 
