@@ -23,10 +23,19 @@ export type AssessmentReport = {
   schemaVersion: "1.0";
   project: { id: string | number; name: string };
   analysis: { id: number; analysedAt: string };
+  analysisDetails: {
+    description: string;
+    repositoryRevisions: { repository: string; revision: string }[];
+    summary: Record<string, number>;
+    highLevelMetrics: Record<string, number>;
+    languages: ProjectAnalysisSnapshot["latestAnalysis"]["languages"];
+  };
+  files: ProjectAnalysisSnapshot["files"];
+  catalogue: ProjectAnalysisSnapshot["catalogue"];
   summary: {
     codeHealth: number;
     lineCoveragePercent: number | null;
-    loadedFilePage: {
+    projectFiles: {
       analysedFiles: number;
       measurableFiles: number;
       hotspots: number;
@@ -67,10 +76,19 @@ export function buildAssessment(snapshot: ProjectAnalysisSnapshot): AssessmentRe
     schemaVersion: "1.0",
     project: { id: snapshot.project.id, name: snapshot.project.name },
     analysis: { id: snapshot.latestAnalysis.id, analysedAt: observedAt },
+    analysisDetails: {
+      description: snapshot.latestAnalysis.description,
+      repositoryRevisions: snapshot.latestAnalysis.repositoryRevisions,
+      summary: snapshot.latestAnalysis.summary,
+      highLevelMetrics: snapshot.latestAnalysis.highLevelMetrics,
+      languages: snapshot.latestAnalysis.languages,
+    },
+    files: snapshot.files,
+    catalogue: snapshot.catalogue,
     summary: {
       codeHealth: snapshot.project.analysis.codeHealth.now,
       lineCoveragePercent: snapshot.project.analysis.lineCoveragePercent,
-      loadedFilePage: {
+      projectFiles: {
         analysedFiles: snapshot.files.length,
         measurableFiles: snapshot.files.filter((file) => file.codeHealth !== null).length,
         hotspots: snapshot.files.filter((file) => file.hotspot).length,

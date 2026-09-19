@@ -27,6 +27,19 @@ export type CodeSceneAnalysis = {
   id: number;
   name: string;
   analysedAt: string;
+  description: string;
+  repositoryRevisions: { repository: string; revision: string }[];
+  summary: Record<string, number>;
+  languages: CodeSceneLanguageSummary[];
+  highLevelMetrics: Record<string, number>;
+};
+
+export type CodeSceneLanguageSummary = {
+  language: string;
+  files: number;
+  blankLines: number;
+  commentLines: number;
+  codeLines: number;
 };
 
 export type CodeSceneFile = {
@@ -36,10 +49,36 @@ export type CodeSceneFile = {
   changeFrequency: number;
   codeHealth: number | null;
   hotspot: boolean;
+  raw: JsonValue;
 };
 
 export type ProjectAnalysisSnapshot = {
   project: CodeSceneProjectDetails;
   latestAnalysis: CodeSceneAnalysis;
   files: CodeSceneFile[];
+  catalogue: Record<CodeSceneDatasetName, CodeSceneDataset>;
 };
+
+export type JsonValue =
+  null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
+export type CodeSceneDataset =
+  | { status: "available"; source: string; data: JsonValue }
+  | { status: "unavailable"; source: string; reason: string };
+
+export type CodeSceneDatasetName =
+  | "analysisHistory"
+  | "components"
+  | "commits"
+  | "issues"
+  | "commitActivity"
+  | "authors"
+  | "branches"
+  | "technicalDebt"
+  | "refactoringTargets"
+  | "skills"
+  | "badges"
+  | "repositories"
+  | "deltaAnalyses"
+  | "coverageInsights"
+  | "coverageOutcomes";

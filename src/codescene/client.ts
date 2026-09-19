@@ -1,11 +1,14 @@
 import type {
   CodeHealthTrend,
   CodeSceneAnalysis,
+  CodeSceneDataset,
+  CodeSceneDatasetName,
   CodeSceneFile,
   CodeSceneProject,
   CodeSceneProjectDetails,
   ProjectAnalysisSnapshot,
   ProjectPage,
+  JsonValue,
 } from "./types.js";
 
 export type CodeSceneClientOptions = {
@@ -15,6 +18,18 @@ export type CodeSceneClientOptions = {
 };
 
 type ValidationContext = { message: string };
+type FilePage = { files: CodeSceneFile[]; page: number; maxPages: number };
+type DatasetRequest = {
+  name: CodeSceneDatasetName;
+  path: string;
+  collection?: string;
+  optional?: boolean;
+};
+type PagedDatasetRequest = DatasetRequest & { collection: string };
+type DatasetPageRequest = { dataset: PagedDatasetRequest; page: number };
+
+const FILE_PAGE_SIZE = 500;
+const REQUEST_TIMEOUT_MS = 60_000;
 
 export class CodeSceneApiError extends Error {
   constructor(
@@ -47,14 +62,124 @@ export class CodeSceneClient {
     const [project, latestAnalysis, files] = await Promise.all([
       this.get(projectPath),
       this.get(`${projectPath}/analyses/latest`),
-      this.get(`${projectPath}/analyses/latest/files`),
+      this.getAllFiles(`${projectPath}/analyses/latest/files`),
     ]);
+    const catalogue = await this.getCatalogue({ projectPath });
 
     return {
       project: parseProjectDetails(project),
       latestAnalysis: parseLatestAnalysis(latestAnalysis),
-      files: parseFiles(files),
+      files,
+      catalogue,
     };
+  }
+
+  private async getCatalogue(context: {
+    projectPath: string;
+  }): Promise<Record<CodeSceneDatasetName, CodeSceneDataset>> {
+    const { projectPath } = context;
+    const latest = `${projectPath}/analyses/latest`;
+    const requests: DatasetRequest[] = [
+      { name: "analysisHistory", path: `${projectPath}/analyses`, collection: "analyses" },
+      { name: "components", path: `${latest}/components`, collection: "components" },
+      { name: "commits", path: `${latest}/commits`, collection: "commits" },
+      { name: "issues", path: `${latest}/issues`, collection: "issues" },
+      { name: "commitActivity", path: `${latest}/commit-activity` },
+      { name: "authors", path: `${latest}/author-statistics` },
+      { name: "branches", path: `${latest}/branch-statistics` },
+      { name: "technicalDebt", path: `${latest}/technical-debt`, collection: "result" },
+      {
+        name: "refactoringTargets",
+        path: `${latest}/technical-debt?refactoring_targets=true`,
+        collection: "result",
+      },
+      { name: "skills", path: `${latest}/experience/languages`, optional: true },
+      { name: "badges", path: `${projectPath}/badges` },
+      { name: "repositories", path: `${projectPath}/repositories` },
+      {
+        name: "deltaAnalyses",
+        path: `${projectPath}/delta-analyses`,
+        collection: "delta_analyses",
+      },
+      {
+        name: "coverageInsights",
+        path: `code-coverage/${projectPath}/gate-results/insights`,
+        optional: true,
+      },
+      {
+        name: "coverageOutcomes",
+        path: `code-coverage/${projectPath}/gate-results/outcomes`,
+        collection: "outcomes",
+        optional: true,
+      },
+    ];
+    const entries = await Promise.all(
+      requests.map(async (request) => [request.name, await this.getDataset(request)] as const),
+    );
+    return Object.fromEntries(entries) as Record<CodeSceneDatasetName, CodeSceneDataset>;
+  }
+
+  private async getDataset(request: DatasetRequest): Promise<CodeSceneDataset> {
+    try {
+      const data = isPagedDataset(request)
+        ? await this.getAllDatasetPages(request)
+        : parseJson(await this.get(request.path));
+      return { status: "available", source: request.path, data };
+    } catch (error) {
+      if (request.optional) {
+        if (error instanceof CodeSceneApiError && error.status === 404) {
+          return {
+            status: "unavailable",
+            source: request.path,
+            reason: "Endpoint not available",
+          };
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async getAllDatasetPages(request: PagedDatasetRequest): Promise<JsonValue[]> {
+    const firstPage = await this.getDatasetPage({ dataset: request, page: 1 });
+    const remainingPages = await Promise.all(
+      pageNumbersAfter(1, firstPage.maxPages).map((page) =>
+        this.getDatasetPage({ dataset: request, page }),
+      ),
+    );
+    return [firstPage, ...remainingPages].flatMap((page) => page.items);
+  }
+
+  private async getDatasetPage(
+    request: DatasetPageRequest,
+  ): Promise<{ items: JsonValue[]; maxPages: number }> {
+    const { dataset, page } = request;
+    const { path, collection } = dataset;
+    const separator = path.includes("?") ? "&" : "?";
+    const response = requireRecord(
+      await this.get(`${path}${separator}page=${page}&page_size=${FILE_PAGE_SIZE}`),
+      { message: `Unexpected CodeScene ${collection} response` },
+    );
+    const context = { message: `Unexpected CodeScene ${collection} response` };
+    if (requireNumber(response.page, context) !== page) throw new TypeError(context.message);
+    return {
+      items: requireArray(response[collection], context).map(parseJson),
+      maxPages: requireNumber(response.max_pages, context),
+    };
+  }
+
+  private async getAllFiles(path: string): Promise<CodeSceneFile[]> {
+    const firstPage = await this.getFilePage(path, 1);
+    const remainingPages = await Promise.all(
+      pageNumbersAfter(firstPage.page, firstPage.maxPages).map((page) =>
+        this.getFilePage(path, page),
+      ),
+    );
+    return [firstPage, ...remainingPages].flatMap((page) => page.files);
+  }
+
+  private async getFilePage(path: string, page: number): Promise<FilePage> {
+    const query = new URLSearchParams({ page: String(page), page_size: String(FILE_PAGE_SIZE) });
+    return parseFilePage(await this.get(`${path}?${query}`), page);
   }
 
   private async get(path: string): Promise<unknown> {
@@ -64,7 +189,7 @@ export class CodeSceneClient {
         Accept: "application/json",
         Authorization: `Bearer ${this.token}`,
       },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -86,6 +211,10 @@ export class CodeSceneClient {
 
     return response.json() as Promise<unknown>;
   }
+}
+
+function isPagedDataset(request: DatasetRequest): request is PagedDatasetRequest {
+  return request.collection !== undefined;
 }
 
 function normalizeServer(server: string): URL {
@@ -184,13 +313,52 @@ function parseLatestAnalysis(value: unknown): CodeSceneAnalysis {
     id: requireNumber(analysis.id, context),
     name: requireString(analysis.name, context),
     analysedAt: requireString(analysis.readable_analysis_time, context),
+    description: requireString(analysis.description, context),
+    repositoryRevisions: requireArray(analysis.analysis_repo_revisions, context).map((value) => {
+      const revision = requireRecord(value, context);
+      return {
+        repository: requireString(revision.repo, context),
+        revision: requireString(revision.revision, context),
+      };
+    }),
+    summary: parseNumberRecord(analysis.summary, context),
+    languages: requireArray(analysis.file_summary, context).map((value) => {
+      const language = requireRecord(value, context);
+      return {
+        language: requireString(language.language, context),
+        files: requireNumber(language.number_of_files, context),
+        blankLines: requireNumber(language.blank, context),
+        commentLines: requireNumber(language.comment, context),
+        codeLines: requireNumber(language.code, context),
+      };
+    }),
+    highLevelMetrics: parseNumberRecord(analysis.high_level_metrics, context),
   };
 }
 
-function parseFiles(value: unknown): CodeSceneFile[] {
+function parseNumberRecord(value: unknown, context: ValidationContext): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(requireRecord(value, context)).map(([key, item]) => [
+      key,
+      requireNumber(item, context),
+    ]),
+  );
+}
+
+function parseFilePage(value: unknown, expectedPage: number): FilePage {
   const context = { message: "Unexpected CodeScene files response" };
   const response = requireRecord(value, context);
-  return requireArray(response.files, context).map((file, index) => parseFile(file, index));
+  const page = requireNumber(response.page, context);
+  if (page !== expectedPage) throw new TypeError(context.message);
+  return {
+    files: requireArray(response.files, context).map((file, index) => parseFile(file, index)),
+    page,
+    maxPages: requireNumber(response.max_pages, context),
+  };
+}
+
+function pageNumbersAfter(page: number, maxPages: number): number[] {
+  return Array.from({ length: Math.max(0, maxPages - page) }, (_, index) => page + index + 1);
 }
 
 function parseFile(value: unknown, index: number): CodeSceneFile {
@@ -206,6 +374,7 @@ function parseFile(value: unknown, index: number): CodeSceneFile {
       message: `Unexpected CodeScene file Code Health at index ${index}`,
     }),
     hotspot: requireBoolean(file.hotspot, context),
+    raw: parseJson(file),
   };
 }
 
@@ -251,4 +420,25 @@ function isNullableNumber(value: unknown): value is number | null {
 function isNumber(value: unknown): value is number {
   // Stryker disable next-line LogicalOperator,ConditionalExpression: Number.isFinite also rejects every non-number value, making those mutations equivalent.
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function parseJson(value: unknown): JsonValue {
+  if (isJsonScalar(value)) return value;
+  if (isNumber(value)) return value;
+  if (Array.isArray(value)) return value.map(parseJson);
+  if (isRecord(value)) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, parseJson(item)]));
+  }
+  throw new TypeError("Unexpected non-JSON value in CodeScene response");
+}
+
+function isJsonScalar(value: unknown): value is null | boolean | string {
+  if (value === null) return true;
+  switch (typeof value) {
+    case "boolean":
+    case "string":
+      return true;
+    default:
+      return false;
+  }
 }

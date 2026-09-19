@@ -10,7 +10,7 @@ describe("buildAssessment", () => {
     assert.deepEqual(report.summary, {
       codeHealth: 10,
       lineCoveragePercent: null,
-      loadedFilePage: {
+      projectFiles: {
         analysedFiles: 3,
         measurableFiles: 2,
         hotspots: 1,
@@ -75,11 +75,59 @@ function snapshot(month: number | null, coverage: number | null): ProjectAnalysi
         lineCoveragePercent: coverage,
       },
     },
-    latestAnalysis: { id: 123, name: "Reporter", analysedAt: "2026-09-17T14:15:55Z" },
+    latestAnalysis: {
+      id: 123,
+      name: "Reporter",
+      analysedAt: "2026-09-17T14:15:55Z",
+      description: "Report analysis",
+      repositoryRevisions: [{ repository: "reporter", revision: "abc123" }],
+      summary: { files: 3 },
+      languages: [
+        { language: "TypeScript", files: 3, blankLines: 1, commentLines: 2, codeLines: 30 },
+      ],
+      highLevelMetrics: { lines_of_code: 30 },
+    },
     files: [file("a.ts", 10, true), file("b.ts", null, false), file("c.ts", 9.5, false)],
+    catalogue: catalogue(),
   };
 }
 
+function catalogue(): ProjectAnalysisSnapshot["catalogue"] {
+  return {
+    analysisHistory: available([]),
+    components: available([]),
+    commits: available([]),
+    issues: available([]),
+    commitActivity: available([]),
+    authors: available([]),
+    branches: available([]),
+    technicalDebt: available([]),
+    refactoringTargets: available([]),
+    skills: available([]),
+    badges: available({}),
+    repositories: available([]),
+    deltaAnalyses: available([]),
+    coverageInsights: unavailable(),
+    coverageOutcomes: unavailable(),
+  };
+}
+
+function available(data: never[] | Record<string, never>) {
+  return { status: "available" as const, source: "source", data };
+}
+
+function unavailable() {
+  return { status: "unavailable" as const, source: "source", reason: "Not available" };
+}
+
 function file(name: string, codeHealth: number | null, hotspot: boolean) {
-  return { name, path: `src/${name}`, linesOfCode: 10, changeFrequency: 1, codeHealth, hotspot };
+  return {
+    name,
+    path: `src/${name}`,
+    linesOfCode: 10,
+    changeFrequency: 1,
+    codeHealth,
+    hotspot,
+    raw: { name, hotspot },
+  };
 }

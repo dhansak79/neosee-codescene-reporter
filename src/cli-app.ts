@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { buildAssessment } from "./analysis/report-model.js";
 import { CodeSceneClient } from "./codescene/client.js";
 import type { ProjectAnalysisSnapshot, ProjectPage } from "./codescene/types.js";
@@ -14,6 +14,7 @@ type Dependencies = {
     project: string,
   ) => Promise<ProjectAnalysisSnapshot>;
   writeSnapshot: typeof writeFile;
+  makeDirectory: typeof mkdir;
   readAsset: (path: string) => Promise<Buffer>;
   now: () => Date;
   log: (...values: unknown[]) => void;
@@ -24,6 +25,7 @@ const defaultDependencies: Dependencies = {
   getProjectAnalysis: async (server, token, project) =>
     new CodeSceneClient({ server, token }).getProjectAnalysis(project),
   writeSnapshot: writeFile,
+  makeDirectory: mkdir,
   readAsset: async (path) => readFile(path),
   now: () => new Date(),
   log: console.log,
@@ -38,14 +40,15 @@ export async function runCli(
   const token = readToken(environment);
 
   if (options.project) {
-    if (!options.output) throw new Error("--project requires --output");
     const snapshot = await dependencies.getProjectAnalysis(options.server, token, options.project);
     const report = buildAssessment(snapshot);
-    const content = options.output.endsWith(".json")
+    const output = options.output ?? defaultReportPath(snapshot);
+    if (!options.output) await dependencies.makeDirectory("reports", { recursive: true });
+    const content = output.endsWith(".json")
       ? `${JSON.stringify(report, null, 2)}\n`
       : await renderBrandedHtml(report, dependencies);
-    await dependencies.writeSnapshot(options.output, content, { flag: "wx" });
-    dependencies.log(`Report written to ${options.output}`);
+    await dependencies.writeSnapshot(output, content, { flag: "wx" });
+    dependencies.log(`Report written to ${output}`);
     return;
   }
 
@@ -69,6 +72,11 @@ export async function runCli(
   }
 
   dependencies.log(page.projects);
+}
+
+function defaultReportPath(snapshot: ProjectAnalysisSnapshot): string {
+  const project = String(snapshot.project.id).replaceAll(/[^a-zA-Z0-9_-]/g, "-");
+  return `reports/project-${project}-analysis-${snapshot.latestAnalysis.id}.html`;
 }
 
 async function renderBrandedHtml(

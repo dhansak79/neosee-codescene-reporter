@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, type writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, type mkdir, type writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, mock } from "node:test";
@@ -55,6 +55,7 @@ describe("CLI", () => {
         listProjects,
         getProjectAnalysis: async () => mockSnapshot(),
         writeSnapshot: mock.fn(async () => undefined),
+        makeDirectory: mock.fn(async () => undefined),
         readAsset: async () => Buffer.from("logo"),
         now: () => new Date("2026-01-02T03:04:05.000Z"),
         log,
@@ -78,6 +79,7 @@ describe("CLI", () => {
         listProjects: async () => ({ projects: [], raw: [] }),
         getProjectAnalysis: async () => mockSnapshot(),
         writeSnapshot: mock.fn(async () => undefined),
+        makeDirectory: mock.fn(async () => undefined),
         readAsset: async () => Buffer.from("logo"),
         now: () => new Date("2026-01-02T03:04:05.000Z"),
         log,
@@ -101,6 +103,7 @@ describe("CLI", () => {
         }),
         getProjectAnalysis: async () => mockSnapshot(),
         writeSnapshot: writeSnapshot as typeof writeFile,
+        makeDirectory: mock.fn(async () => undefined),
         readAsset: async () => Buffer.from("logo"),
         now: () => new Date("2026-01-02T03:04:05.000Z"),
         log,
@@ -147,8 +150,19 @@ describe("CLI", () => {
           code_coverage: { line_coverage_percent: 100 },
         },
       },
-      { id: 123, name: "Example", readable_analysis_time: "2026-01-02T03:04:05Z" },
       {
+        id: 123,
+        name: "Example",
+        readable_analysis_time: "2026-01-02T03:04:05Z",
+        description: "Example analysis",
+        analysis_repo_revisions: [],
+        summary: { files: 1 },
+        file_summary: [],
+        high_level_metrics: { lines_of_code: 10 },
+      },
+      {
+        page: 1,
+        max_pages: 1,
         files: [
           {
             name: "index.ts",
@@ -161,7 +175,11 @@ describe("CLI", () => {
         ],
       },
     ];
-    mock.method(globalThis, "fetch", async () => Response.json(responses.shift()));
+    mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+      const next = responses.shift();
+      if (next) return Response.json(next);
+      return cliCatalogueResponse(new URL(input instanceof Request ? input.url : input));
+    });
     mock.method(console, "log", () => undefined);
 
     try {
@@ -180,6 +198,7 @@ describe("CLI", () => {
       const writeSnapshot = mock.fn(async (..._args: unknown[]) => undefined);
       const getProjectAnalysis = mock.fn(async () => mockSnapshot());
       const readAsset = mock.fn(async (path: string) => Buffer.from(path));
+      const makeDirectory = mock.fn<typeof mkdir>(async () => undefined);
       const log = mock.fn();
 
       await runCli(
@@ -189,6 +208,7 @@ describe("CLI", () => {
           listProjects: async () => ({ projects: [], raw: [] }),
           getProjectAnalysis,
           writeSnapshot: writeSnapshot as typeof writeFile,
+          makeDirectory,
           readAsset,
           now: () => new Date(),
           log,
@@ -215,26 +235,40 @@ describe("CLI", () => {
         assert.match(content, new RegExp(Buffer.from(".resources/neosee.png").toString("base64")));
       }
       assert.deepEqual(writeSnapshot.mock.calls[0]?.arguments[2], { flag: "wx" });
+      assert.equal(makeDirectory.mock.callCount(), 0);
       assert.deepEqual(log.mock.calls[0]?.arguments, [`Report written to ${output}`]);
     }
   });
 
-  it("requires an output for a selected project", async () => {
-    await assert.rejects(
-      runCli(
-        ["--project", "84792"],
-        { CS_ACCESS_TOKEN: "token" },
-        {
-          listProjects: async () => ({ projects: [], raw: [] }),
-          getProjectAnalysis: async () => mockSnapshot(),
-          writeSnapshot: mock.fn(async () => undefined),
-          readAsset: async () => Buffer.from("logo"),
-          now: () => new Date(),
-          log: mock.fn(),
-        },
-      ),
-      /--project requires --output/,
+  it("writes selected projects to reports by default", async () => {
+    const writeSnapshot = mock.fn<typeof writeFile>(async () => undefined);
+    const makeDirectory = mock.fn<typeof mkdir>(async () => undefined);
+    const log = mock.fn();
+    await runCli(
+      ["--project", "project/84792"],
+      { CS_ACCESS_TOKEN: "token" },
+      {
+        listProjects: async () => ({ projects: [], raw: [] }),
+        getProjectAnalysis: async () => ({
+          ...mockSnapshot(),
+          project: { ...mockSnapshot().project, id: "project/84792" },
+        }),
+        writeSnapshot: writeSnapshot as typeof writeFile,
+        makeDirectory,
+        readAsset: async () => Buffer.from("logo"),
+        now: () => new Date(),
+        log,
+      },
     );
+
+    assert.deepEqual(makeDirectory.mock.calls[0]?.arguments, ["reports", { recursive: true }]);
+    assert.equal(
+      writeSnapshot.mock.calls[0]?.arguments[0],
+      "reports/project-project-84792-analysis-123.html",
+    );
+    assert.deepEqual(log.mock.calls[0]?.arguments, [
+      "Report written to reports/project-project-84792-analysis-123.html",
+    ]);
   });
 });
 
@@ -250,7 +284,16 @@ function mockSnapshot() {
         lineCoveragePercent: 100,
       },
     },
-    latestAnalysis: { id: 123, name: "Example", analysedAt: "2026-01-02T03:04:05Z" },
+    latestAnalysis: {
+      id: 123,
+      name: "Example",
+      analysedAt: "2026-01-02T03:04:05Z",
+      description: "Example analysis",
+      repositoryRevisions: [],
+      summary: { files: 1 },
+      languages: [],
+      highLevelMetrics: { lines_of_code: 10 },
+    },
     files: [
       {
         name: "index.ts",
@@ -259,7 +302,45 @@ function mockSnapshot() {
         changeFrequency: 2,
         codeHealth: 10,
         hotspot: true,
+        raw: { name: "index.ts", owner: "Team" },
       },
     ],
+    catalogue: mockCatalogue(),
   };
+}
+
+function mockCatalogue() {
+  const available = { status: "available" as const, source: "source", data: [] };
+  return {
+    analysisHistory: available,
+    components: available,
+    commits: available,
+    issues: available,
+    commitActivity: available,
+    authors: available,
+    branches: available,
+    technicalDebt: available,
+    refactoringTargets: available,
+    skills: available,
+    badges: available,
+    repositories: available,
+    deltaAnalyses: available,
+    coverageInsights: available,
+    coverageOutcomes: available,
+  };
+}
+
+function cliCatalogueResponse(url: URL): Response {
+  const collection = [
+    ["/analyses", "analyses"],
+    ["/components", "components"],
+    ["/commits", "commits"],
+    ["/issues", "issues"],
+    ["/technical-debt", "result"],
+    ["/delta-analyses", "delta_analyses"],
+    ["/gate-results/outcomes", "outcomes"],
+  ].find(([suffix]) => url.pathname.endsWith(suffix!))?.[1];
+  return collection
+    ? Response.json({ page: 1, max_pages: 1, [collection]: [] })
+    : Response.json([]);
 }
